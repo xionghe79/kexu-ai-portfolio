@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, sendMessage, createTask, toggleTask, toggleTakeover, resetState } from '../src/domain.js';
+import { initialState, sendMessage, sendHumanMessage, suggestTask, createTask, toggleTask, toggleTakeover, resetState } from '../src/domain.js';
 
 test('a customer message adds a transcript entry and a simulated reply', () => {
   const before = initialState();
@@ -46,6 +46,23 @@ test('human takeover suppresses simulated replies', () => {
   assert.equal(taken.takeovers[customerId], true);
   assert.equal(after.conversations[customerId].length, taken.conversations[customerId].length + 1);
   assert.equal(after.conversations[customerId].at(-1).author, 'customer');
+});
+
+test('human replies require takeover and are recorded distinctly', () => {
+  const before = initialState();
+  assert.equal(sendHumanMessage(before, 'C-101', '您好'), before);
+  const taken = toggleTakeover(before, 'C-101');
+  assert.equal(sendHumanMessage(taken, 'C-101', '  '), taken);
+  const after = sendHumanMessage(taken, 'C-101', '您好，我来跟进');
+  assert.equal(after.conversations['C-101'].at(-1).author, 'human');
+  assert.equal(after.conversations['C-101'].at(-1).text, '您好，我来跟进');
+  assert.equal(after.timeline['C-101'][0].title, '顾问回复');
+});
+
+test('task draft uses the latest customer message', () => {
+  const state = sendMessage(initialState(), 'C-101', '下周想看产品演示');
+  assert.match(suggestTask(state, 'C-101'), /下周想看产品演示/);
+  assert.equal(state.tasks.length, 3);
 });
 
 test('reset returns fresh fictional data', () => {

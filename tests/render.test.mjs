@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, sendMessage, createTask, toggleTask, toggleTakeover } from '../src/domain.js';
+import { initialState, sendMessage, sendHumanMessage, createTask, toggleTask, toggleTakeover } from '../src/domain.js';
 import { renderApp } from '../src/app.js';
 
 test('overview shows customer and pending task counts with demo disclosure', () => {
@@ -44,6 +44,23 @@ test('consultation reflects a message and takeover state', () => {
   assert.match(html, /想约演示/);
   assert.match(html, /人工接管中/);
   assert.match(html, /自动演示回复已暂停/);
+  assert.match(html, /id="human-form"/);
+  assert.match(html, /顾问回复/);
+});
+
+test('human reply is labeled and escaped in the consultation view', () => {
+  const state = sendHumanMessage(toggleTakeover(initialState(), 'C-101'), 'C-101', '<b>人工回复</b>');
+  const html = renderApp(state, { view: 'consultation', customerId: 'C-101' });
+  assert.match(html, /顾问（演示）/);
+  assert.match(html, /&lt;b&gt;人工回复&lt;\/b&gt;/);
+  assert.doesNotMatch(html, /<b>人工回复<\/b>/);
+});
+
+test('task suggestion is editable before creating a task', () => {
+  const state = initialState();
+  const html = renderApp(state, { view: 'tasks', customerId: 'C-101', taskDraft: '跟进：演示需求' });
+  assert.match(html, /value="跟进：演示需求"/);
+  assert.equal(state.tasks.length, 3);
 });
 
 test('task panel reflects completion', () => {

@@ -26,6 +26,21 @@ export function sendMessage(state, customerId, text) {
   return next;
 }
 
+export function sendHumanMessage(state, customerId, text) {
+  const value = String(text ?? '').trim();
+  if (!value || !state.takeovers[customerId]) return state;
+  const next = structuredClone(state);
+  const at = now();
+  next.conversations[customerId].push({ id: nextId(next, 'M'), author: 'human', text: value, at });
+  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: '顾问回复', detail: value, at });
+  return next;
+}
+
+export function suggestTask(state, customerId) {
+  const message = state.conversations[customerId]?.findLast(item => item.author === 'customer');
+  return message ? `跟进咨询：${message.text.slice(0, 80)}` : '';
+}
+
 export function createTask(state, customerId, title) {
   const value = String(title ?? '').trim();
   if (!value || !state.customers.some(customer => customer.id === customerId)) return state;
