@@ -14,6 +14,14 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
 const customerById = (state, id) => state.customers.find(customer => customer.id === id) || state.customers[0];
 const customerName = (state, id) => customerById(state, id)?.name || '未知客户';
 const initials = name => [...name].slice(-2).join('');
+const dateKey = date => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+const clockTime = date => new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+const formatWhen = (at, today) => {
+  const date = new Date(at);
+  const key = dateKey(date);
+  const label = key === dateKey(today) ? '今天' : key === dateKey(new Date(today.getTime() - 86400000)) ? '昨天' : key.replaceAll('-', '/');
+  return `${label} ${clockTime(date)}`;
+};
 
 function customerRows(state, selectedId, view) {
   return state.customers.map(customer => `
@@ -25,9 +33,9 @@ function customerRows(state, selectedId, view) {
     </button>`).join('');
 }
 
-function timeline(state, customerId) {
-  return (state.timeline[customerId] || []).map(item => `
-    <li class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.detail)}</p><small>${escapeHtml(item.time)}</small></div></li>`).join('');
+function timeline(state, customerId, today) {
+  return [...(state.timeline[customerId] || [])].sort((a, b) => new Date(b.at) - new Date(a.at)).map(item => `
+    <li class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.detail)}</p><small>${escapeHtml(formatWhen(item.at, today))}</small></div></li>`).join('');
 }
 
 function taskRows(state, customerId = null) {
@@ -55,18 +63,19 @@ function overview(state, selectedId) {
     <section class="content-grid"><article class="panel"><div class="panel-head"><div><span class="eyebrow">CUSTOMER SIGNALS</span><h3>近期客户</h3></div><button class="text-link" data-nav="customers">查看全部 ↗</button></div><div class="customer-list">${customerRows(state, selectedId, 'customers')}</div></article><article class="panel"><div class="panel-head"><div><span class="eyebrow">NEXT ACTIONS</span><h3>跟进清单</h3></div><button class="text-link" data-nav="tasks">任务视图 ↗</button></div><ul class="task-list">${taskRows(state)}</ul></article></section>`;
 }
 
-function customers(state, customer) {
+function customers(state, customer, today) {
   const ownTasks = state.tasks.filter(task => task.customerId === customer.id && !task.done).length;
+  const nextAction = state.tasks.find(task => task.customerId === customer.id && !task.done)?.title || '暂无待办任务';
   return `<section class="workspace-grid"><article class="panel list-panel"><div class="panel-head"><div><span class="eyebrow">CUSTOMER DIRECTORY</span><h3>客户档案</h3></div><span class="count-pill">${state.customers.length} 位</span></div><div class="customer-list">${customerRows(state, customer.id, 'customers')}</div></article>
-    <div class="detail-stack"><article class="panel profile-panel"><div class="profile-top"><span class="avatar large" style="--avatar:${escapeHtml(customer.color)}">${escapeHtml(initials(customer.name))}</span><div><span class="eyebrow">CUSTOMER 360</span><h2>${escapeHtml(customer.name)}</h2><p>${escapeHtml(customer.company)}</p></div><span class="stage-badge">${escapeHtml(customer.stage)}</span></div><div class="profile-facts"><div><span>兴趣方向</span><strong>${escapeHtml(customer.interest)}</strong></div><div><span>负责人</span><strong>${escapeHtml(customer.owner)}</strong></div><div><span>意向分</span><strong>${customer.score} / 100</strong></div><div><span>待办任务</span><strong>${ownTasks} 项</strong></div></div><div class="next-action"><span>建议下一步</span><strong>${escapeHtml(customer.nextAction)}</strong><button data-nav="consultation">查看对话 ↗</button></div></article>
-    <article class="panel"><div class="panel-head"><div><span class="eyebrow">ACTIVITY</span><h3>旅程时间线</h3></div></div><ul class="timeline">${timeline(state, customer.id)}</ul></article></div></section>`;
+    <div class="detail-stack"><article class="panel profile-panel"><div class="profile-top"><span class="avatar large" style="--avatar:${escapeHtml(customer.color)}">${escapeHtml(initials(customer.name))}</span><div><span class="eyebrow">CUSTOMER 360</span><h2>${escapeHtml(customer.name)}</h2><p>${escapeHtml(customer.company)}</p></div><span class="stage-badge">${escapeHtml(customer.stage)}</span></div><div class="profile-facts"><div><span>兴趣方向</span><strong>${escapeHtml(customer.interest)}</strong></div><div><span>负责人</span><strong>${escapeHtml(customer.owner)}</strong></div><div><span>意向分</span><strong>${customer.score} / 100</strong></div><div><span>待办任务</span><strong>${ownTasks} 项</strong></div></div><div class="next-action"><span>建议下一步</span><strong>${escapeHtml(nextAction)}</strong><button data-nav="consultation">查看对话 ↗</button></div></article>
+    <article class="panel"><div class="panel-head"><div><span class="eyebrow">ACTIVITY</span><h3>旅程时间线</h3></div></div><ul class="timeline">${timeline(state, customer.id, today)}</ul></article></div></section>`;
 }
 
-function consultation(state, customer) {
+function consultation(state, customer, today) {
   const takeover = state.takeovers[customer.id];
   const messages = state.conversations[customer.id] || [];
   return `<section class="workspace-grid"><article class="panel list-panel"><div class="panel-head"><div><span class="eyebrow">CONVERSATIONS</span><h3>咨询队列</h3></div><span class="count-pill">${state.customers.length} 条</span></div><div class="customer-list">${customerRows(state, customer.id, 'consultation')}</div><div class="side-note"><span class="note-icon">✳</span><p>演示回复由本地规则生成，不连接模型或真实客服系统。</p></div></article>
-    <article class="panel chat-panel"><div class="chat-head"><div class="chat-person"><span class="avatar" style="--avatar:${escapeHtml(customer.color)}">${escapeHtml(initials(customer.name))}</span><div><h3>${escapeHtml(customer.name)}</h3><small>${escapeHtml(customer.company)} · ${escapeHtml(customer.stage)}</small></div></div><span class="chat-state ${takeover ? 'human' : ''}">${takeover ? '人工接管中' : '离线模拟回复'}</span></div><div class="chat-disclosure">${takeover ? '自动演示回复已暂停。新消息只记录在本地会话中。' : '当前为离线模拟。回复由固定规则生成，不代表真实 AI 服务。'}</div><div class="messages" id="messages">${messages.map(message => `<div class="message ${message.author}"><span class="message-author">${message.author === 'customer' ? escapeHtml(customer.name) : '演示助手'}</span><p>${escapeHtml(message.text)}</p><small>${escapeHtml(message.time)}</small></div>`).join('')}</div><form id="message-form" class="composer"><label class="sr-only" for="message-input">输入演示消息</label><input id="message-input" name="message" placeholder="输入一句话，体验咨询到跟进的流程…" autocomplete="off" maxlength="500" /><button type="submit">发送 ↗</button></form><div class="chat-actions"><button data-action="takeover" class="${takeover ? 'active' : ''}">${takeover ? '恢复演示回复' : '人工接管'}</button><button data-action="quick-task">生成跟进任务</button><span>所有内容仅保存在此浏览器</span></div></article></section>`;
+    <article class="panel chat-panel"><div class="chat-head"><div class="chat-person"><span class="avatar" style="--avatar:${escapeHtml(customer.color)}">${escapeHtml(initials(customer.name))}</span><div><h3>${escapeHtml(customer.name)}</h3><small>${escapeHtml(customer.company)} · ${escapeHtml(customer.stage)}</small></div></div><span class="chat-state ${takeover ? 'human' : ''}">${takeover ? '人工接管中' : '离线模拟回复'}</span></div><div class="chat-disclosure">${takeover ? '自动演示回复已暂停。新消息只记录在本地会话中。' : '当前为离线模拟。回复由固定规则生成，不代表真实 AI 服务。'}</div><div class="messages" id="messages">${messages.map(message => `<div class="message ${message.author}"><span class="message-author">${message.author === 'customer' ? escapeHtml(customer.name) : '演示助手'}</span><p>${escapeHtml(message.text)}</p><small>${escapeHtml(formatWhen(message.at, today))}</small></div>`).join('')}</div><form id="message-form" class="composer"><label class="sr-only" for="message-input">输入演示消息</label><input id="message-input" name="message" placeholder="输入一句话，体验咨询到跟进的流程…" autocomplete="off" maxlength="500" /><button type="submit">发送 ↗</button></form><div class="chat-actions"><button data-action="takeover" class="${takeover ? 'active' : ''}">${takeover ? '恢复演示回复' : '人工接管'}</button><button data-action="quick-task">生成跟进任务</button><span>所有内容仅保存在此浏览器</span></div></article></section>`;
 }
 
 function tasksView(state, customer) {
@@ -74,14 +83,14 @@ function tasksView(state, customer) {
   return `<section class="content-grid tasks-grid"><article class="panel"><div class="panel-head"><div><span class="eyebrow">FOLLOW-UP QUEUE</span><h3>跟进任务</h3></div><span class="count-pill">${pending} 项待办</span></div><ul class="task-list full">${taskRows(state)}</ul></article><article class="panel create-panel"><span class="eyebrow">CREATE ACTION</span><h3>把线索变成行动</h3><p>任务会同时出现在客户档案与时间线中，便于面试演示完整闭环。</p><form id="task-form"><label for="task-customer">关联客户</label><select id="task-customer" name="customerId">${state.customers.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === customer.id ? 'selected' : ''}>${escapeHtml(item.name)} · ${escapeHtml(item.company)}</option>`).join('')}</select><label for="task-title">任务内容</label><input id="task-title" name="title" placeholder="例如：发送产品介绍" maxlength="100" required /><button type="submit">创建任务 ↗</button></form></article></section>`;
 }
 
-export function renderApp(state, selection = {}) {
+export function renderApp(state, selection = {}, today = new Date()) {
   const view = views.some(item => item[0] === selection.view) ? selection.view : 'overview';
   const customer = customerById(state, selection.customerId);
   const title = { overview: '工作台总览', customers: '客户 360', consultation: '咨询工作台', tasks: '跟进任务' }[view];
-  return `<div class="shell"><aside class="sidebar"><div class="brand"><span class="brand-symbol">序<span>✳</span></span><div><strong>客序 AI</strong><small>CLIENT JOURNEY STUDIO</small></div></div><div class="nav-heading">WORKSPACE</div><nav aria-label="主导航">${views.map(([key, label, icon]) => `<button class="nav-item ${key === view ? 'current' : ''}" data-nav="${key}" aria-label="${label}"><span class="nav-icon">${icon}</span><span>${label}</span>${key === 'tasks' ? `<em>${state.tasks.filter(task => !task.done).length}</em>` : ''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="demo-card"><span class="demo-spark">✳</span><strong>作品集演示</strong><p>虚构资料 · 离线模拟<br>无真实客户和模型调用</p></div><button class="reset-link" data-action="reset">重置演示数据 ↺</button></div></aside><main class="main"><header class="topbar"><div><span class="breadcrumb">工作空间 <span>/</span> ${title}</span><h1>${title}</h1></div><div class="header-right"><span class="live-dot"></span><span>本地演示模式</span><span class="header-avatar">访</span></div></header><div class="page-content">${view === 'overview' ? overview(state, customer.id) : view === 'customers' ? customers(state, customer) : view === 'consultation' ? consultation(state, customer) : tasksView(state, customer)}</div><footer class="footer">客序 AI · Client Journey Studio <button data-action="reset">重置演示数据 ↺</button><span>所有品牌、人物和业务数据均为虚构演示</span></footer></main></div>`;
+  return `<div class="shell"><aside class="sidebar"><div class="brand"><span class="brand-symbol">序<span>✳</span></span><div><strong>客序 AI</strong><small>CLIENT JOURNEY STUDIO</small></div></div><div class="nav-heading">WORKSPACE</div><nav aria-label="主导航">${views.map(([key, label, icon]) => `<button class="nav-item ${key === view ? 'current' : ''}" data-nav="${key}" aria-label="${label}"><span class="nav-icon">${icon}</span><span>${label}</span>${key === 'tasks' ? `<em>${state.tasks.filter(task => !task.done).length}</em>` : ''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="demo-card"><span class="demo-spark">✳</span><strong>作品集演示</strong><p>虚构资料 · 离线模拟<br>无真实客户和模型调用</p></div><button class="reset-link" data-action="reset">重置演示数据 ↺</button></div></aside><main class="main"><header class="topbar"><div><span class="breadcrumb">工作空间 <span>/</span> ${title}</span><h1>${title}</h1></div><div class="header-right"><span class="live-dot"></span><span>本地演示模式</span><span class="header-avatar">访</span></div></header><div class="page-content">${view === 'overview' ? overview(state, customer.id) : view === 'customers' ? customers(state, customer, today) : view === 'consultation' ? consultation(state, customer, today) : tasksView(state, customer)}</div><footer class="footer">客序 AI · Client Journey Studio <button data-action="reset">重置演示数据 ↺</button><span>所有品牌、人物和业务数据均为虚构演示</span></footer></main></div>`;
 }
 
-const storageKey = 'kexu-ai-portfolio-demo-v1';
+const storageKey = 'kexu-ai-portfolio-demo-v2';
 const root = typeof document === 'undefined' ? null : document.getElementById('app');
 if (root) {
   let state = initialState();

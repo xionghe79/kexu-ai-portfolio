@@ -26,6 +26,16 @@ test('tasks can be created and completed for a customer', () => {
   const completed = toggleTask(added, added.tasks.at(-1).id);
   assert.equal(completed.tasks.at(-1).done, true);
   assert.equal(added.tasks.at(-1).done, false);
+  assert.equal(completed.timeline[customerId][0].title, '完成跟进任务');
+  assert.equal(completed.timeline[customerId][0].detail, '发送方案摘要');
+  assert.match(completed.timeline[customerId][0].at, /^\d{4}-\d\d-\d\dT/);
+});
+
+test('reopening a task records the change in the customer journey', () => {
+  const done = toggleTask(initialState(), 'T-1');
+  const reopened = toggleTask(done, 'T-1');
+  assert.equal(reopened.timeline['C-101'][0].title, '重新打开跟进任务');
+  assert.equal(reopened.tasks[0].done, false);
 });
 
 test('human takeover suppresses simulated replies', () => {

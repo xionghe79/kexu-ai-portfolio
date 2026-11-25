@@ -20,6 +20,23 @@ test('selected customer view shows its timeline and tasks', () => {
   assert.doesNotMatch(html, /进入方案评估/);
 });
 
+test('customer next action follows pending tasks instead of a completed task', () => {
+  const completed = toggleTask(initialState(), 'T-1');
+  const html = renderApp(completed, { view: 'customers', customerId: 'C-101' });
+  assert.match(html, /暂无待办任务/);
+  assert.match(html, /完成跟进任务/);
+  assert.doesNotMatch(html, /<strong>发送方案摘要<\/strong><button data-nav/);
+});
+
+test('timeline displays newest first and derives relative dates at render time', () => {
+  const state = initialState();
+  const html = renderApp(state, { view: 'customers', customerId: 'C-101' }, new Date('2026-11-27T10:00:00+08:00'));
+  assert.ok(html.indexOf('咨询会话') < html.indexOf('进入方案评估'));
+  assert.match(html, /2026\/11\/25 09:42/);
+  const yesterday = renderApp(state, { view: 'customers', customerId: 'C-101' }, new Date('2026-11-26T10:00:00+08:00'));
+  assert.match(yesterday, /昨天 09:42/);
+});
+
 test('consultation reflects a message and takeover state', () => {
   let state = sendMessage(initialState(), 'C-101', '想约演示');
   state = toggleTakeover(state, 'C-101');

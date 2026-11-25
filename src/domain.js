@@ -3,7 +3,7 @@ import { demoData } from './demo-data.js';
 export const initialState = () => structuredClone(demoData);
 export const resetState = initialState;
 
-const now = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+const now = () => new Date().toISOString();
 const nextId = (state, prefix) => `${prefix}-${state.nextId++}`;
 
 function simulatedReply(text) {
@@ -17,12 +17,12 @@ export function sendMessage(state, customerId, text) {
   const value = String(text ?? '').trim();
   if (!value || !state.conversations[customerId]) return state;
   const next = structuredClone(state);
-  const time = now();
-  next.conversations[customerId].push({ id: nextId(next, 'M'), author: 'customer', text: value, time });
+  const at = now();
+  next.conversations[customerId].push({ id: nextId(next, 'M'), author: 'customer', text: value, at });
   if (!next.takeovers[customerId]) {
-    next.conversations[customerId].push({ id: nextId(next, 'M'), author: 'demo', text: simulatedReply(value), time });
+    next.conversations[customerId].push({ id: nextId(next, 'M'), author: 'demo', text: simulatedReply(value), at });
   }
-  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: '客户咨询', detail: value, time: `今天 ${time}` });
+  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: '客户咨询', detail: value, at });
   return next;
 }
 
@@ -31,7 +31,7 @@ export function createTask(state, customerId, title) {
   if (!value || !state.customers.some(customer => customer.id === customerId)) return state;
   const next = structuredClone(state);
   next.tasks.push({ id: nextId(next, 'T'), customerId, title: value, done: false, due: '待安排' });
-  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: '新建跟进任务', detail: value, time: `今天 ${now()}` });
+  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: '新建跟进任务', detail: value, at: now() });
   return next;
 }
 
@@ -40,6 +40,7 @@ export function toggleTask(state, taskId) {
   const next = structuredClone(state);
   const task = next.tasks.find(item => item.id === taskId);
   task.done = !task.done;
+  next.timeline[task.customerId].unshift({ id: nextId(next, 'E'), title: task.done ? '完成跟进任务' : '重新打开跟进任务', detail: task.title, at: now() });
   return next;
 }
 
@@ -47,6 +48,6 @@ export function toggleTakeover(state, customerId) {
   if (!(customerId in state.takeovers)) return state;
   const next = structuredClone(state);
   next.takeovers[customerId] = !next.takeovers[customerId];
-  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: next.takeovers[customerId] ? '人工接管' : '恢复演示回复', detail: next.takeovers[customerId] ? '自动演示回复已暂停' : '自动演示回复已恢复', time: `今天 ${now()}` });
+  next.timeline[customerId].unshift({ id: nextId(next, 'E'), title: next.takeovers[customerId] ? '人工接管' : '恢复演示回复', detail: next.takeovers[customerId] ? '自动演示回复已暂停' : '自动演示回复已恢复', at: now() });
   return next;
 }
