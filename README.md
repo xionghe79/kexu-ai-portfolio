@@ -26,6 +26,14 @@ npm start
 npm test
 ```
 
+浏览器端关键路径测试使用 Playwright。首次运行先安装开发依赖和 Chromium：
+
+```bash
+npm install
+npx playwright install chromium
+npm run test:browser
+```
+
 ## 实现说明
 
 - `src/demo-data.js`：三位虚构客户及初始会话、任务和时间线。
