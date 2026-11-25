@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { initialState, sendMessage, createTask, toggleTask, toggleTakeover, resetState } from '../src/domain.js';
+
+test('a customer message adds a transcript entry and a simulated reply', () => {
+  const before = initialState();
+  const customerId = before.customers[0].id;
+  const after = sendMessage(before, customerId, '想了解一下服务方案');
+  assert.equal(after.conversations[customerId].length, before.conversations[customerId].length + 2);
+  assert.equal(after.conversations[customerId].at(-2).text, '想了解一下服务方案');
+  assert.equal(after.conversations[customerId].at(-1).author, 'demo');
+  assert.equal(before.conversations[customerId].length, 2);
+});
+
+test('blank messages do not change state', () => {
+  const before = initialState();
+  assert.equal(sendMessage(before, before.customers[0].id, '  '), before);
+});
+
+test('tasks can be created and completed for a customer', () => {
+  const before = initialState();
+  const customerId = before.customers[0].id;
+  const added = createTask(before, customerId, '发送方案摘要');
+  assert.equal(added.tasks.length, before.tasks.length + 1);
+  assert.equal(added.tasks.at(-1).customerId, customerId);
+  const completed = toggleTask(added, added.tasks.at(-1).id);
+  assert.equal(completed.tasks.at(-1).done, true);
+  assert.equal(added.tasks.at(-1).done, false);
+});
+
+test('human takeover suppresses simulated replies', () => {
+  const before = initialState();
+  const customerId = before.customers[0].id;
+  const taken = toggleTakeover(before, customerId);
+  const after = sendMessage(taken, customerId, '请帮我人工处理');
+  assert.equal(taken.takeovers[customerId], true);
+  assert.equal(after.conversations[customerId].length, taken.conversations[customerId].length + 1);
+  assert.equal(after.conversations[customerId].at(-1).author, 'customer');
+});
+
+test('reset returns fresh fictional data', () => {
+  const initial = initialState();
+  const changed = sendMessage(initial, initial.customers[0].id, '测试');
+  assert.deepEqual(resetState(), initial);
+  assert.notDeepEqual(changed, initial);
+});
